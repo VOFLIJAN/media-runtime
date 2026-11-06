@@ -104,6 +104,9 @@ jobs:
       - name: Build mpv library
         run: bash ./build-macos.sh
 
+      - name: Build prism_video library
+        run: bash ./build-prism-video.sh
+
       - name: Prepare artifacts
         run: |
           set -euo pipefail

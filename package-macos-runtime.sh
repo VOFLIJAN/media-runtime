@@ -289,7 +289,7 @@ copy_root_mpv_libs() {
   local found=0
   local src
   shopt -s nullglob
-  for src in "$BUILD_DIR"/libmpv*.dylib; do
+  for src in "$BUILD_DIR"/libmpv*.dylib "$BUILD_DIR"/libprism_video.dylib; do
     if [ -f "$src" ] || [ -L "$src" ]; then
       cp -vP "$src" "$LIB_DIR/"
       found=1

@@ -86,6 +86,10 @@ mkdir -p "$MPV_DIR"
 curl --fail --location --retry 3 --retry-delay 2 --output "$TARBALL" "$SOURCE_URL"
 tar -zxf "$TARBALL" -C "$MPV_DIR" --strip-components=1 && apply_patch
 patch -d vendor/mpv -p1 -N < patches/mpv/0001-ao_coreaudio-fix-init-failure-on-macOS-27.patch
+cp overlay/mpv/context_prism.m vendor/mpv/video/out/vulkan/context_prism.m
+sed -i.bak "s|^if features\['cocoa'\] and features\['vulkan'\] and features\['swift'\]|if features['cocoa'] and features['vulkan']\n    sources += files('video/out/vulkan/context_prism.m')\nendif\n\n&|" vendor/mpv/meson.build
+rm -f vendor/mpv/meson.build.bak
+grep -q context_prism vendor/mpv/meson.build
 echo "$MPV_VERSION" > "$VERSION_FILE"
 rm -f "$TARBALL"
 echo "Done: $MPV_DIR"
