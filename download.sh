@@ -85,7 +85,19 @@ rm -rf "$MPV_DIR"
 mkdir -p "$MPV_DIR"
 curl --fail --location --retry 3 --retry-delay 2 --output "$TARBALL" "$SOURCE_URL"
 tar -zxf "$TARBALL" -C "$MPV_DIR" --strip-components=1 && apply_patch
-patch -d vendor/mpv -p1 -N < patches/mpv/0001-ao_coreaudio-fix-init-failure-on-macOS-27.patch
+CA_PATCH=patches/mpv/0001-ao_coreaudio-fix-init-failure-on-macOS-27.patch
+# Upstream may already contain this fix: then every hunk is reported as
+# "previously applied" and the patch is skipped instead of failing the build.
+CA_OUT=$(patch -d vendor/mpv -p1 -N --dry-run < "$CA_PATCH" 2>&1) && CA_RC=0 || CA_RC=$?
+if [ "$CA_RC" -eq 0 ]; then
+    patch -d vendor/mpv -p1 -N < "$CA_PATCH"
+elif echo "$CA_OUT" | grep -q "Ignoring previously applied" && ! echo "$CA_OUT" | grep -q "FAILED"; then
+    echo "SKIP: $CA_PATCH already present in upstream mpv v${MPV_VERSION}"
+else
+    echo "$CA_OUT" >&2
+    echo "ERROR: $CA_PATCH does not apply to mpv v${MPV_VERSION}" >&2
+    exit 1
+fi
 cp overlay/mpv/context_prism.m vendor/mpv/video/out/vulkan/context_prism.m
 sed -i.bak "s|^if features\['cocoa'\] and features\['vulkan'\] and features\['swift'\]|if features['cocoa'] and features['vulkan']\n    sources += files('video/out/vulkan/context_prism.m')\nendif\n\n&|" vendor/mpv/meson.build
 rm -f vendor/mpv/meson.build.bak
