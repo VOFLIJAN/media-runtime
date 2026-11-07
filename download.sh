@@ -5,7 +5,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENDOR_DIR="$PROJECT_ROOT/vendor"
 MPV_DIR="$VENDOR_DIR/mpv"
-MPV_VERSION="${MPV_VERSION:-0.41.0}"
+MPV_VERSION="${MPV_VERSION:-0.42.0}"
 VERSION_FILE="$MPV_DIR/.mpv-version"
 TARBALL="$VENDOR_DIR/mpv-v${MPV_VERSION}.tar.gz"
 SOURCE_URL="https://github.com/mpv-player/mpv/archive/refs/tags/v${MPV_VERSION}.tar.gz"
