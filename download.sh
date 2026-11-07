@@ -108,7 +108,7 @@ echo "Done: $LIBDOVI_DIR"
 
 # libplacebo
 LIBPLACEBO_REPO="https://github.com/haasn/libplacebo.git"
-LIBPLACEBO_REF="v7.360.1"
+LIBPLACEBO_REF="v7.387.0"
 LIBPLACEBO_DIR="$VENDOR_DIR/libplacebo"
 rm -rf "$LIBPLACEBO_DIR"
 echo "Downloading libplacebo ${LIBPLACEBO_REF}..."
