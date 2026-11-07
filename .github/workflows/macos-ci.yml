@@ -2,6 +2,11 @@ name: Build - macOS
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a release (used by the auto-merge workflow)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths-ignore:
@@ -133,7 +138,7 @@ jobs:
           compression-level: 0
 
       - name: Publish release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.publish)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

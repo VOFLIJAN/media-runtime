@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks pinned upstream versions and opens one PR per newer version.
+# Checks pinned upstream versions and opens ONE PR with all newer versions.
 # Usage: ./check-updates.sh [--dry-run]   (needs gh; in CI uses GITHUB_TOKEN)
 set -euo pipefail
 
@@ -78,35 +78,17 @@ Build log: $REPO_URL/actions?query=branch%3A${branch//\//%2F}"
   gh workflow run macos-ci.yml --ref "$branch"
 }
 
-HINT="Merge only if the build on this branch is green.
-Red build has two possible causes: (1) our patches or context_prism.m break on the new version: manual fix needed; (2) the components depend on each other (example: mpv 0.42 needs libplacebo >= 7.387). Then check the combined PR (all updates in one branch): if it is green, merge it and close the single PRs."
+HINT="Merged automatically when the build on this branch is green. Red build: an issue is opened, nothing is merged (patches or context_prism.m need a manual fix)."
 
-# one PR per component
-for entry in "${updates[@]}"; do
-  IFS='|' read -r comp cur new <<< "$entry"
-  branch="update/$comp-$new"
-  if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-    echo "$comp: branch $branch already exists, skipping"
-    continue
-  fi
-  git checkout -q -b "$branch" "$BASE_BRANCH"
-  apply "$comp" "$new"
-  git commit -q -am "Update $comp to $new"
-  open_pr "$branch" "Update $comp to $new" "Automated: $comp $cur -> $new.
-
-$HINT"
-  git checkout -q "$BASE_BRANCH"
-done
-
-# one combined PR when two or more components have updates
-if [ "${#updates[@]}" -ge 2 ]; then
+# one PR with all updates (auto-merged by .github/workflows/auto-merge-updates.yml when the build is green)
+if true; then
   name=""; list=""
   for entry in "${updates[@]}"; do
     IFS='|' read -r comp cur new <<< "$entry"
     name="${name:+$name-}$comp-$new"; list="$list
 - $comp $cur -> $new"
   done
-  branch="update/all-$name"
+  branch="update/$name"
   if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
     echo "combined: branch $branch already exists, skipping"
   else
@@ -116,7 +98,7 @@ if [ "${#updates[@]}" -ge 2 ]; then
       apply "$comp" "$new"
     done
     git commit -q -am "Update all: $name"
-    open_pr "$branch" "Update all: ${#updates[@]} components" "Automated combined update:$list
+    open_pr "$branch" "Update: ${name//-/ }" "Automated combined update:$list
 
 $HINT"
     git checkout -q "$BASE_BRANCH"

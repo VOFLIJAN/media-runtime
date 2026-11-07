@@ -1,0 +1,54 @@
+name: Auto-merge updates
+
+# Runs after every "Build - macOS". Only update/* branches are handled:
+#   green build -> merge the PR into main and start a build that publishes the release
+#   red build   -> open an issue with the build link, merge nothing
+on:
+  workflow_run:
+    workflows: ["Build - macOS"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  decide:
+    if: startsWith(github.event.workflow_run.head_branch, 'update/')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+      CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Find the PR of this branch
+        id: pr
+        run: |
+          set -euo pipefail
+          NUM="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number -q '.[0].number // empty')"
+          echo "number=$NUM" >> "$GITHUB_OUTPUT"
+          [ -n "$NUM" ] || echo "No open PR for $BRANCH, nothing to do."
+
+      - name: Green build, merge and publish
+        if: steps.pr.outputs.number != '' && env.CONCLUSION == 'success'
+        run: |
+          set -euo pipefail
+          NUM="${{ steps.pr.outputs.number }}"
+          # merge only the commit that was built
+          gh pr merge "$NUM" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$HEAD_SHA"
+          # a merge made with GITHUB_TOKEN does not trigger the push workflow: start the publishing build
+          gh workflow run macos-ci.yml --repo "$GITHUB_REPOSITORY" --ref main -f publish=true
+
+      - name: Red build, report and merge nothing
+        if: steps.pr.outputs.number != '' && env.CONCLUSION != 'success'
+        run: |
+          set -euo pipefail
+          NUM="${{ steps.pr.outputs.number }}"
+          BODY="Build for branch \`$BRANCH\` finished with: $CONCLUSION.
+          Nothing was merged. Build log: $RUN_URL
+          PR: #$NUM. Typical cause: patches or context_prism.m do not fit the new upstream version (manual fix needed)."
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Update build failed: $BRANCH" --body "$BODY"
