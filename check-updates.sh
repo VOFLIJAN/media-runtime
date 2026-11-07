@@ -39,7 +39,7 @@ if [ "$DRY_RUN" = 0 ]; then
   BASE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 fi
 
-found=0
+updates=()   # entries: "comp|cur|new"
 for comp in mpv libdovi libplacebo moltenvk; do
   case "$comp" in
     mpv) cur="$(current_mpv)"; new="$(latest_mpv)" ;;
@@ -55,10 +55,35 @@ for comp in mpv libdovi libplacebo moltenvk; do
     echo "$comp: up to date ($cur)"
     continue
   fi
-  found=1
   echo "$comp: $cur -> $new"
-  [ "$DRY_RUN" = 1 ] && continue
+  updates+=("$comp|$cur|$new")
+done
 
+if [ "${#updates[@]}" = 0 ]; then
+  echo "Nothing to update."
+  exit 0
+fi
+[ "$DRY_RUN" = 1 ] && exit 0
+
+REPO_URL="$(gh repo view --json url -q .url)"
+
+# open_pr <branch> <title> <body>: PR + explicit build (GITHUB_TOKEN PRs do not trigger workflows)
+open_pr() {
+  local branch="$1" title="$2" body="$3"
+  git push -q origin "$branch"
+  gh pr create --base "$BASE_BRANCH" --head "$branch" --title "$title" \
+    --body "$body
+
+Build log: $REPO_URL/actions?query=branch%3A${branch//\//%2F}"
+  gh workflow run macos-ci.yml --ref "$branch"
+}
+
+HINT="Merge only if the build on this branch is green.
+Red build has two possible causes: (1) our patches or context_prism.m break on the new version: manual fix needed; (2) the components depend on each other (example: mpv 0.42 needs libplacebo >= 7.387). Then check the combined PR (all updates in one branch): if it is green, merge it and close the single PRs."
+
+# one PR per component
+for entry in "${updates[@]}"; do
+  IFS='|' read -r comp cur new <<< "$entry"
   branch="update/$comp-$new"
   if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
     echo "$comp: branch $branch already exists, skipping"
@@ -67,14 +92,34 @@ for comp in mpv libdovi libplacebo moltenvk; do
   git checkout -q -b "$branch" "$BASE_BRANCH"
   apply "$comp" "$new"
   git commit -q -am "Update $comp to $new"
-  git push -q origin "$branch"
-  gh pr create --base "$BASE_BRANCH" --head "$branch" \
-    --title "Update $comp to $new" \
-    --body "Automated: $comp $cur -> $new. Merge only if the build run on this branch is green. Red build = patches or code need a manual fix."
-  # PRs opened with GITHUB_TOKEN do not trigger workflows; start the build explicitly.
-  gh workflow run macos-ci.yml --ref "$branch"
+  open_pr "$branch" "Update $comp to $new" "Automated: $comp $cur -> $new.
+
+$HINT"
   git checkout -q "$BASE_BRANCH"
 done
 
-[ "$found" = 0 ] && echo "Nothing to update."
+# one combined PR when two or more components have updates
+if [ "${#updates[@]}" -ge 2 ]; then
+  name=""; list=""
+  for entry in "${updates[@]}"; do
+    IFS='|' read -r comp cur new <<< "$entry"
+    name="${name:+$name-}$comp-$new"; list="$list
+- $comp $cur -> $new"
+  done
+  branch="update/all-$name"
+  if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+    echo "combined: branch $branch already exists, skipping"
+  else
+    git checkout -q -b "$branch" "$BASE_BRANCH"
+    for entry in "${updates[@]}"; do
+      IFS='|' read -r comp cur new <<< "$entry"
+      apply "$comp" "$new"
+    done
+    git commit -q -am "Update all: $name"
+    open_pr "$branch" "Update all: ${#updates[@]} components" "Automated combined update:$list
+
+$HINT"
+    git checkout -q "$BASE_BRANCH"
+  fi
+fi
 exit 0
