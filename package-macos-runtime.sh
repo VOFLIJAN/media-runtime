@@ -223,6 +223,8 @@ rewrite_install_names() {
   shopt -s nullglob
   for file in "$LIB_DIR"/*.dylib "$LIB_DIR"/*.so; do
     [ -f "$file" ] || continue
+    # Symlinks (libmpv.dylib -> libmpv.2.dylib) share the target; skip to keep its id.
+    [ -L "$file" ] && continue
     chmod u+w "$file" || true
 
     case "$file" in
@@ -417,6 +419,12 @@ done
 
 rewrite_install_names
 verify_no_absolute_non_system_refs
+
+# install_name_tool invalidates signatures; arm64 requires a valid one.
+for file in "$LIB_DIR"/*.dylib; do
+  [ -L "$file" ] && continue
+  codesign --force --sign - "$file"
+done
 
 tar -czf "${PKG_NAME}.tar.gz" -C "$OUT_DIR" .
 shasum -a 256 "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"

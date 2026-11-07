@@ -60,6 +60,17 @@ EXPORT void prism_layer_set_hdr(void *layerp, bool on)
     [CATransaction commit];
 }
 
+EXPORT void prism_layer_set_visible(void *layerp, bool visible)
+{
+    CAMetalLayer *layer = (__bridge CAMetalLayer *)layerp;
+    if (!layer)
+        return;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    layer.hidden = !visible;
+    [CATransaction commit];
+}
+
 EXPORT void prism_layer_destroy(void *layerp)
 {
     if (!layerp)
