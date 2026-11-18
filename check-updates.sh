@@ -89,9 +89,11 @@ if true; then
 - $comp $cur -> $new"
   done
   branch="update/$name"
-  if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-    echo "combined: branch $branch already exists, skipping"
+  if [ -n "$(gh pr list --head "$branch" --state open --json number -q '.[].number')" ]; then
+    echo "combined: open PR for $branch exists, skipping"
   else
+    # stale branch from a closed PR would block a new one
+    git push -q origin --delete "$branch" 2>/dev/null || true
     git checkout -q -b "$branch" "$BASE_BRANCH"
     for entry in "${updates[@]}"; do
       IFS='|' read -r comp cur new <<< "$entry"
